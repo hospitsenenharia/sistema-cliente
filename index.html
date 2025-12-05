@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sistema de Vendas, Estoque e OS</title>
+
+  <!-- SUPABASE CLIENT (UMD PARA NAVEGADOR) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+
+  <style>
+    * { box-sizing:border-box; font-family: Arial, system-ui; }
+    body {
+      margin:0;
+      background:linear-gradient(180deg,#3b82f6,#2563eb);
+      min-height:100vh;
+    }
+    header{
+      background:#1d4ed8;
+      color:#fff;
+      padding:14px 20px;
+      font-size:20px;
+      font-weight:bold;
+      box-shadow:0 2px 6px rgba(0,0,0,.35);
+    }
+    nav{
+      background:#fff;
+      padding:10px;
+      display:flex;
+      gap:10px;
+      align-items:center;
+      position:sticky;
+      top:0;
+      z-index:50;
+      box-shadow:0 2px 4px rgba(0,0,0,.15);
+    }
+    nav button{
+      padding:8px 14px;
+      border-radius:8px;
+      border:none;
+      cursor:pointer;
+      font-weight:bold;
+      background:#e5e7eb;
+    }
+    nav button.active{
+      background:#2563eb;
+      color:#fff;
+    }
+    nav .spacer{flex:1}
+    main{
+      padding:20px;
+      max-width:1100px;
+      margin:0 auto 40px auto;
+    }
+    section{
+      display:none;
+    }
+    .card{
+      background:#fff;
+      border-radius:12px;
+      padding:16px;
+      box-shadow:0 4px 16px rgba(0,0,0,.20);
+      margin-bottom:18px;
+      transition:.15s;
+    }
+    .card:hover{ transform:translateY(-1px); box-shadow:0 6px 18px rgba(0,0,0,.28);}
+    h2,h3{color:#0b3d91;margin-top:0}
+    label{font-weight:bold;font-size:14px}
+    input,select,textarea{
+      width:100%;
+      padding:9px 10px;
+      border-radius:8px;
+      border:1px solid #cbd5e1;
+      margin:4px 0 12px 0;
+      background:#f9fafb;
+    }
+    input:focus,select:focus,textarea:focus{
+      outline:none;
+      border-color:#2563eb;
+      background:#fff;
+      box-shadow:0 0 0 2px rgba(37,99,235,.25);
+    }
+    .btn{
+      background:linear-gradient(90deg,#1d4ed8,#2563eb);
+      color:#fff;
+      border:none;
+      padding:9px 14px;
+      border-radius:8px;
+      font-weight:bold;
+      cursor:pointer;
+    }
+    .btn.secondary{
+      background:#4b5563;
+    }
+    .btn.danger{
+      background:#dc2626;
+    }
+    .list{
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+
+    /* LOGIN OVERLAY */
+    #loginOverlay{
+      position:fixed;
+      inset:0;
+      background:rgba(15,23,42,.85);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      z-index:100;
+    }
+    #loginBox{
+      background:#fff;
+      padding:20px;
+      border-radius:14px;
+      width:320px;
+      box-shadow:0 18px 40px rgba(0,0,0,.65);
+    }
+    #loginBox h2{
+      margin:0 0 12px 0;
+      color:#1d4ed8;
+    }
+    #loginMsg{
+      color:#dc2626;
+      font-size:13px;
+      min-height:18px;
+      margin-top:4px;
+    }
+
+    /* Dashboard cards simples */
+    .kpi-grid{
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+      gap:14px;
+    }
+    .kpi{
+      font-size:14px;
+    }
+    .kpi span{
+      font-size:22px;
+      font-weight:800;
+      color:#111827;
+    }
+
+    @media(max-width:700px){
+      nav{flex-wrap:wrap}
+    }
+  </style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginOverlay">
+  <div id="loginBox">
+    <h2>Entrar</h2>
+    <label>Email</label>
+    <input id="loginEmail" type="email" placeholder="admin@sistema.com" />
+    <label>Senha</label>
+    <input id="loginPass" type="password" />
+    <button class="btn" style="width:100%;margin-top:6px" onclick="login()">Entrar</button>
+    <div id="loginMsg"></div>
+    <div style="font-size:12px;color:#6b7280;margin-top:6px">
+      Use o admin criado no Supabase (ex: <b>admin@sistema.com</b> / <b>123456</b>).
+      Novos usuários devem ser criados pelo admin no painel do Supabase.
+    </div>
+  </div>
+</div>
+
+<header>Sistema de Vendas, Estoque e Ordem de Serviço</header>
+
+<nav>
+  <button data-sec="dashboardSec" class="active" onclick="showSection('dashboardSec', this)">Dashboard</button>
+  <button data-sec="clientesSec" onclick="showSection('clientesSec', this)">Clientes</button>
+  <button id="btnEstoqueMenu" data-sec="produtosSec" onclick="showSection('produtosSec', this)">Estoque</button>
+  <button data-sec="vendasSec" onclick="showSection('vendasSec', this)">Vendas</button>
+  <button data-sec="osSec" onclick="showSection('osSec', this)">Ordem de Serviço</button>
+  <div class="spacer"></div>
+  <span id="userLabel" style="font-size:13px;color:#374151;margin-right:10px;"></span>
+  <button class="btn secondary" onclick="logout()">Sair</button>
+</nav>
+
+<main>
+
+  <!-- DASHBOARD -->
+  <section id="dashboardSec">
+    <h2>Dashboard Financeiro</h2>
+    <div class="card">
+      <div class="kpi-grid">
+        <div class="kpi">Faturamento total<br><span id="fatTotal">0,00</span></div>
+        <div class="kpi">Vendas registradas<br><span id="numVendas">0</span></div>
+        <div class="kpi">Ordens de Serviço<br><span id="numOS">0</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Estoque Crítico</h3>
+      <div id="estoqueCritico"></div>
+    </div>
+  </section>
+
+  <!-- CLIENTES -->
+  <section id="clientesSec">
+    <h2>Clientes</h2>
+    <div class="card">
+      <label>Nome</label>
+      <input id="cliNome" />
+      <label>Telefone</label>
+      <input id="cliTel" />
+      <label>CPF</label>
+      <input id="cliCPF" />
+      <label>Endereço</label>
+      <input id="cliEnd" />
+      <button class="btn" onclick="salvarCliente()">Salvar Cliente</button>
+    </div>
+    <div class="card">
+      <h3>Lista de Clientes</h3>
+      <div id="listaClientes" class="list"></div>
+    </div>
+  </section>
+
+  <!-- ESTOQUE / PRODUTOS -->
+  <section id="produtosSec">
+    <h2>Estoque / Produtos</h2>
+    <div class="card">
+      <label>Nome do Produto</label>
+      <input id="prodNome" />
+      <label>Código</label>
+      <input id="prodCodigo" />
+      <label>Marca</label>
+      <input id="prodMarca" />
+      <label>Modelo</label>
+      <input id="prodModelo" />
+      <label>Quantidade</label>
+      <input id="prodQtd" type="number" value="0" />
+      <label>Estoque mínimo</label>
+      <input id="prodMin" type="number" value="1" />
+      <button class="btn" onclick="salvarProduto()">Salvar Produto</button>
+    </div>
+    <div class="card">
+      <h3>Produtos cadastrados</h3>
+      <div id="listaProdutos" class="list"></div>
+    </div>
+  </section>
+
+  <!-- VENDAS -->
+  <section id="vendasSec">
+    <h2>Vendas</h2>
+    <div class="card">
+      <label>Cliente</label>
+      <select id="venCliente"></select>
+
+      <label>Produto</label>
+      <select id="venProduto"></select>
+
+      <label>Quantidade</label>
+      <input id="venQtd" type="number" value="1" />
+
+      <label>Valor da venda (R$)</label>
+      <input id="venValor" type="number" value="0" />
+
+      <label>Forma de pagamento</label>
+      <select id="venPag">
+        <option value="PIX">PIX</option>
+        <option value="DINHEIRO">Dinheiro</option>
+        <option value="CARTAO">Cartão</option>
+      </select>
+
+      <button class="btn" onclick="registrarVenda()">Registrar Venda</button>
+    </div>
+
+    <div class="card">
+      <h3>Histórico de Vendas</h3>
+      <div id="listaVendas" class="list"></div>
+    </div>
+  </section>
+
+  <!-- ORDEM DE SERVIÇO -->
+  <section id="osSec">
+    <h2>Ordem de Serviço</h2>
+    <div class="card">
+      <label>Cliente</label>
+      <select id="osCliente"></select>
+
+      <label>Descrição do serviço</label>
+      <textarea id="osDesc" rows="3"></textarea>
+
+      <label>Status</label>
+      <select id="osStatus">
+        <option value="ABERTA">Aberta</option>
+        <option value="ANDAMENTO">Em andamento</option>
+        <option value="CONCLUIDA">Concluída</option>
+      </select>
+
+      <button class="btn" onclick="criarOS()">Criar OS</button>
+    </div>
+
+    <div class="card">
+      <h3>Adicionar materiais à OS</h3>
+      <label>Selecione a OS</label>
+      <select id="osSelect"></select>
+
+      <label>Produto</label>
+      <select id="osProd"></select>
+
+      <label>Quantidade usada</label>
+      <input id="osQtd" type="number" value="1" />
+
+      <button class="btn" onclick="addMaterialOS()">Adicionar Material</button>
+    </div>
+
+    <div class="card">
+      <h3>Lista de Ordens de Serviço</h3>
+      <div id="listaOS" class="list"></div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+ // ======= CONEXÃO SUPABASE ========
+const { createClient } = window.supabase;
+
+const supabase = createClient(
+  "https://wmyhonopyhkhnnkhlbjc.supabase.co",
+  "sb_publishable_g4G_Qyi5SD--jiQ-ewk3bA_sxXNh4rQ"
+);
+
+  let usuarioLogado = null;
+
+  // ======= LOGIN / LOGOUT =======
+  async function login(){
+    const email = document.getElementById("loginEmail").value.trim();
+    const senha = document.getElementById("loginPass").value.trim();
+    const msgEl = document.getElementById("loginMsg");
+    msgEl.innerText = "";
+
+    if(!email || !senha){
+      msgEl.innerText = "Informe email e senha.";
+      return;
+    }
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email, password: senha
+    });
+    if(error){
+      msgEl.innerText = "Erro: " + error.message;
+      return;
+    }
+    await carregarUsuarioAtual();
+    document.getElementById("loginOverlay").style.display = "none";
+    atualizarTudo();
+  }
+
+  async function carregarUsuarioAtual(){
+    const { data, error } = await supabase.auth.getUser();
+    if(error || !data.user){
+      usuarioLogado = null;
+      document.getElementById("userLabel").innerText = "";
+      document.getElementById("loginOverlay").style.display = "flex";
+      return;
+    }
+    const role = data.user.user_metadata?.role || "tecnico";
+    usuarioLogado = { email: data.user.email, role };
+    document.getElementById("userLabel").innerText =
+      data.user.email + " (" + role + ")";
+
+    // se não for admin, esconde estoque
+    document.getElementById("btnEstoqueMenu").style.display =
+      role === "admin" ? "inline-block" : "none";
+  }
+
+  async function logout(){
+    await supabase.auth.signOut();
+    usuarioLogado = null;
+    document.getElementById("loginOverlay").style.display = "flex";
+  }
+
+  // ======= NAVEGAÇÃO =======
+  function showSection(id, btn){
+    document.querySelectorAll("section").forEach(sec=>sec.style.display="none");
+    document.getElementById(id).style.display = "block";
+
+    document.querySelectorAll("nav button[data-sec]").forEach(b=>b.classList.remove("active"));
+    if(btn) btn.classList.add("active");
+  }
+
+  // ======= CLIENTES =======
+  async function salvarCliente(){
+    const nome = document.getElementById("cliNome").value.trim();
+    const telefone = document.getElementById("cliTel").value.trim();
+    const cpf = document.getElementById("cliCPF").value.trim();
+    const endereco = document.getElementById("cliEnd").value.trim();
+    if(!nome){ alert("Informe o nome do cliente."); return; }
+
+    const { error } = await supabase.from("clientes").insert([
+      { nome, telefone, cpf, endereco }
+    ]);
+    if(error){ alert("Erro ao salvar cliente: " + error.message); return; }
+    document.getElementById("cliNome").value="";
+    document.getElementById("cliTel").value="";
+    document.getElementById("cliCPF").value="";
+    document.getElementById("cliEnd").value="";
+    carregarClientes();
+  }
+
+  async function carregarClientes(){
+    const { data, error } = await supabase
+      .from("clientes")
+      .select("*")
+      .order("nome", { ascending:true });
+    if(error) return;
+
+    const list = document.getElementById("listaClientes");
+    list.innerHTML="";
+    const selVenda = document.getElementById("venCliente");
+    const selOS = document.getElementById("osCliente");
+    selVenda.innerHTML="";
+    selOS.innerHTML="";
+
+    data.forEach(c=>{
+      const div = document.createElement("div");
+      div.className="card";
+      div.innerHTML = `<b>${c.nome}</b><br>
+        Tel: ${c.telefone || "-"}<br>
+        CPF: ${c.cpf || "-"}<br>
+        Endereço: ${c.endereco || "-"}<br>`;
+      list.appendChild(div);
+
+      selVenda.innerHTML += `<option value="${c.id}">${c.nome}</option>`;
+      selOS.innerHTML += `<option value="${c.id}">${c.nome}</option>`;
+    });
+  }
+
+  // ======= PRODUTOS / ESTOQUE =======
+  async function salvarProduto(){
+    if(usuarioLogado?.role !== "admin"){
+      alert("Apenas admin pode mexer no estoque.");
+      return;
+    }
+    const nome = document.getElementById("prodNome").value.trim();
+    const codigo = document.getElementById("prodCodigo").value.trim();
+    const marca = document.getElementById("prodMarca").value.trim();
+    const modelo = document.getElementById("prodModelo").value.trim();
+    const qtd = Number(document.getElementById("prodQtd").value || 0);
+    const min = Number(document.getElementById("prodMin").value || 0);
+    if(!nome){ alert("Informe o nome do produto."); return; }
+
+    const { error } = await supabase.from("produtos").insert([
+      { nome, codigo, marca, modelo, qtd, estoque_minimo:min }
+    ]);
+    if(error){ alert("Erro ao salvar produto: " + error.message); return; }
+    document.getElementById("prodNome").value="";
+    document.getElementById("prodCodigo").value="";
+    document.getElementById("prodMarca").value="";
+    document.getElementById("prodModelo").value="";
+    document.getElementById("prodQtd").value="0";
+    document.getElementById("prodMin").value="1";
+    carregarProdutos();
+  }
+
+  async function carregarProdutos(){
+    const { data, error } = await supabase
+      .from("produtos")
+      .select("*")
+      .order("nome", { ascending:true });
+    if(error) return;
+
+    const list = document.getElementById("listaProdutos");
+    list.innerHTML="";
+    const selVenda = document.getElementById("venProduto");
+    const selOSProd = document.getElementById("osProd");
+    selVenda.innerHTML="";
+    selOSProd.innerHTML="";
+
+    data.forEach(p=>{
+      const low = p.qtd <= p.estoque_minimo;
+      const div = document.createElement("div");
+      div.className="card";
+      div.innerHTML = `<b>${p.nome}</b> ${
+        low ? '<span style="color:#dc2626;font-weight:bold">⚠ Estoque baixo</span>' : ''
+      }<br>
+      Código: ${p.codigo || "-"}<br>
+      Marca: ${p.marca || "-"} | Modelo: ${p.modelo || "-"}<br>
+      Quantidade: ${p.qtd} | Mínimo: ${p.estoque_minimo}`;
+      list.appendChild(div);
+
+      selVenda.innerHTML += `<option value="${p.id}">${p.nome} (Estoque: ${p.qtd})</option>`;
+      selOSProd.innerHTML += `<option value="${p.id}">${p.nome} (Estoque: ${p.qtd})</option>`;
+    });
+  }
+
+  // ======= VENDAS =======
+  async function registrarVenda(){
+    const cliente_id = document.getElementById("venCliente").value;
+    const produto_id = document.getElementById("venProduto").value;
+    const qtd = Number(document.getElementById("venQtd").value || 0);
+    const valor = Number(document.getElementById("venValor").value || 0);
+    const forma_pagamento = document.getElementById("venPag").value;
+
+    if(!cliente_id || !produto_id || qtd<=0){
+      alert("Preencha cliente, produto e quantidade.");
+      return;
+    }
+
+    // busca produto
+    const { data:prod, error:perr } = await supabase
+      .from("produtos").select("*").eq("id", produto_id).single();
+    if(perr || !prod){ alert("Produto inválido."); return; }
+    if(qtd > prod.qtd){
+      alert("Quantidade maior que o estoque disponível.");
+      return;
+    }
+
+    // registra venda
+    const { error } = await supabase.from("vendas").insert([
+      {
+        cliente_id, produto_id, quantidade:qtd,
+        valor, forma_pagamento, data:new Date().toISOString()
+      }
+    ]);
+    if(error){ alert("Erro ao registrar venda: " + error.message); return; }
+
+    // baixa estoque
+    await supabase.from("produtos")
+      .update({ qtd: prod.qtd - qtd })
+      .eq("id", produto_id);
+
+    alert("Venda registrada.");
+    atualizarTudo();
+  }
+
+  async function carregarVendas(){
+    const { data, error } = await supabase
+      .from("vendas")
+      .select(`
+        id, quantidade, valor, forma_pagamento, data,
+        clientes ( nome ),
+        produtos ( nome )
+      `)
+      .order("data", { ascending:false });
+    if(error) return;
+
+    const list = document.getElementById("listaVendas");
+    list.innerHTML="";
+    data.forEach(v=>{
+      const div = document.createElement("div");
+      div.className="card";
+      div.innerHTML = `<b>${v.clientes?.nome || "-"}</b> comprou ${v.quantidade}x
+        <b>${v.produtos?.nome || "-"}</b><br>
+        Valor: R$ ${Number(v.valor||0).toFixed(2)}<br>
+        Pagamento: ${v.forma_pagamento}<br>
+        Data: ${new Date(v.data).toLocaleString()}`;
+      list.appendChild(div);
+    });
+  }
+
+  // ======= ORDEM DE SERVIÇO =======
+  async function criarOS(){
+    const cliente_id = document.getElementById("osCliente").value;
+    const descricao = document.getElementById("osDesc").value.trim();
+    const status = document.getElementById("osStatus").value;
+    if(!cliente_id || !descricao){
+      alert("Informe cliente e descrição."); return;
+    }
+
+    const { error } = await supabase.from("ordens_servico").insert([
+      {
+        cliente_id,
+        descricao,
+        status,
+        data_abertura:new Date().toISOString()
+      }
+    ]);
+    if(error){ alert("Erro ao criar OS: " + error.message); return; }
+    document.getElementById("osDesc").value="";
+    atualizarTudo();
+  }
+
+  async function carregarOS(){
+    const { data, error } = await supabase
+      .from("ordens_servico")
+      .select(`
+        id, descricao, status, data_abertura,
+        clientes ( nome )
+      `)
+      .order("data_abertura", { ascending:false });
+    if(error) return;
+
+    const list = document.getElementById("listaOS");
+    list.innerHTML="";
+    const selOS = document.getElementById("osSelect");
+    selOS.innerHTML="";
+
+    data.forEach(os=>{
+      const div = document.createElement("div");
+      div.className="card";
+      div.innerHTML = `<b>OS #${os.id}</b><br>
+        Cliente: ${os.clientes?.nome || "-"}<br>
+        Status: ${os.status}<br>
+        Abertura: ${new Date(os.data_abertura).toLocaleString()}<br>
+        Descrição: ${os.descricao}`;
+      list.appendChild(div);
+
+      selOS.innerHTML += `<option value="${os.id}">OS #${os.id} - ${os.status}</option>`;
+    });
+  }
+
+  async function addMaterialOS(){
+    const os_id = document.getElementById("osSelect").value;
+    const produto_id = document.getElementById("osProd").value;
+    const qtd = Number(document.getElementById("osQtd").value || 0);
+    if(!os_id || !produto_id || qtd<=0){
+      alert("Preencha OS, produto e quantidade."); return;
+    }
+
+    const { data:prod, error:perr } = await supabase
+      .from("produtos").select("*").eq("id", produto_id).single();
+    if(perr || !prod){ alert("Produto inválido."); return; }
+    if(qtd > prod.qtd){
+      alert("Quantidade maior que o estoque disponível."); return;
+    }
+
+    // registra uso
+    const { error } = await supabase.from("os_materiais").insert([
+      { os_id, produto_id, quantidade:qtd }
+    ]);
+    if(error){ alert("Erro ao vincular material: " + error.message); return; }
+
+    // baixa estoque
+    await supabase.from("produtos")
+      .update({ qtd: prod.qtd - qtd })
+      .eq("id", produto_id);
+
+    alert("Material adicionado à OS.");
+    atualizarTudo();
+  }
+
+  // ======= DASHBOARD =======
+  async function carregarFaturamento(){
+    const { data, error } = await supabase
+      .from("vendas").select("valor");
+    if(error) return;
+    let soma = 0;
+    data.forEach(v=> soma += Number(v.valor||0));
+    document.getElementById("fatTotal").innerText = soma.toFixed(2);
+  }
+
+  async function carregarNumeroVendas(){
+    const { count } = await supabase
+      .from("vendas").select("*", { count:"exact", head:true });
+    document.getElementById("numVendas").innerText = count ?? 0;
+  }
+
+  async function carregarNumeroOS(){
+    const { count } = await supabase
+      .from("ordens_servico").select("*", { count:"exact", head:true });
+    document.getElementById("numOS").innerText = count ?? 0;
+  }
+
+  async function carregarEstoqueCritico(){
+    const { data, error } = await supabase
+      .from("produtos").select("*");
+    if(error) return;
+    let html = "";
+    data.forEach(p=>{
+      if(p.qtd <= p.estoque_minimo){
+        html += `⚠ ${p.nome} — Qtd: ${p.qtd} (mín: ${p.estoque_minimo})<br>`;
+      }
+    });
+    if(!html) html = "Nenhum produto crítico.";
+    document.getElementById("estoqueCritico").innerHTML = html;
+  }
+
+  async function atualizarDashboard(){
+    await carregarFaturamento();
+    await carregarNumeroVendas();
+    await carregarNumeroOS();
+    await carregarEstoqueCritico();
+  }
+
+  // ======= ATUALIZAR TUDO =======
+  async function atualizarTudo(){
+    await Promise.all([
+      carregarClientes(),
+      carregarProdutos(),
+      carregarVendas(),
+      carregarOS(),
+      atualizarDashboard()
+    ]);
+  }
+
+  // ======= INICIALIZAÇÃO =======
+  document.addEventListener("DOMContentLoaded", async ()=>{
+    showSection("dashboardSec", document.querySelector("nav button[data-sec='dashboardSec']"));
+    await carregarUsuarioAtual();
+    if(usuarioLogado){
+      document.getElementById("loginOverlay").style.display = "none";
+      atualizarTudo();
+    } else {
+      document.getElementById("loginOverlay").style.display = "flex";
+    }
+
+    // atualização periódica leve
+    setInterval(()=>{
+      if(usuarioLogado) atualizarDashboard();
+    }, 8000);
+  });
+</script>
+
+</body>
+</html>
