@@ -433,62 +433,45 @@ const supabase = createClient(
   }
 
   // ======= PRODUTOS / ESTOQUE =======
-  async function salvarProduto(){
-    if(usuarioLogado?.role !== "admin"){
-      alert("Apenas admin pode mexer no estoque.");
-      return;
-    }
-    const nome = document.getElementById("prodNome").value.trim();
-    const codigo = document.getElementById("prodCodigo").value.trim();
-    const marca = document.getElementById("prodMarca").value.trim();
-    const modelo = document.getElementById("prodModelo").value.trim();
-    const qtd = Number(document.getElementById("prodQtd").value || 0);
-    const min = Number(document.getElementById("prodMin").value || 0);
-    if(!nome){ alert("Informe o nome do produto."); return; }
+let listaProdutosCache = [];
 
-    const { error } = await supabase.from("produtos").insert([
-      { nome, codigo, marca, modelo, qtd, estoque_minimo:min }
-    ]);
-    if(error){ alert("Erro ao salvar produto: " + error.message); return; }
-    document.getElementById("prodNome").value="";
-    document.getElementById("prodCodigo").value="";
-    document.getElementById("prodMarca").value="";
-    document.getElementById("prodModelo").value="";
-    document.getElementById("prodQtd").value="0";
-    document.getElementById("prodMin").value="1";
-    carregarProdutos();
-  }
+async function carregarProdutos(){
+  const { data, error } = await supabase
+    .from("produtos")
+    .select("*")
+    .order("nome", { ascending: true });
 
-  async function carregarProdutos(){
-    const { data, error } = await supabase
-      .from("produtos")
-      .select("*")
-      .order("nome", { ascending:true });
-    if(error) return;
+  if(error) return;
 
-    const list = document.getElementById("listaProdutos");
-    list.innerHTML="";
-    const selVenda = document.getElementById("venProduto");
-    const selOSProd = document.getElementById("osProd");
-    selVenda.innerHTML="";
-    selOSProd.innerHTML="";
+  listaProdutosCache = data; 
+  renderizarProdutos(data);
+}
 
-    data.forEach(p=>{
-      const low = p.qtd <= p.estoque_minimo;
-      const div = document.createElement("div");
-      div.className="card";
-      div.innerHTML = `<b>${p.nome}</b> ${
-        low ? '<span style="color:#dc2626;font-weight:bold">⚠ Estoque baixo</span>' : ''
-      }<br>
+function renderizarProdutos(lista){
+  const list = document.getElementById("listaProdutos");
+  list.innerHTML = "";
+
+  lista.forEach(p => {
+    const low = p.qtd <= p.estoque_minimo;
+
+    const div = document.createElement("div");
+    div.className = "card";
+    div.innerHTML = `
+      <b>${p.nome}</b> 
+      ${low ? '<span style="color:#dc2626;font-weight:bold">⚠ Estoque baixo</span>' : ""}
+      <br>
       Código: ${p.codigo || "-"}<br>
-      Marca: ${p.marca || "-"} | Modelo: ${p.modelo || "-"}<br>
-      Quantidade: ${p.qtd} | Mínimo: ${p.estoque_minimo}`;
-      list.appendChild(div);
+      Marca: ${p.marca || "-"}<br>
+      Modelo: ${p.modelo || "-"}<br>
+      Qtd: ${p.qtd} | Min: ${p.estoque_minimo}
+      <br><br>
 
-      selVenda.innerHTML += `<option value="${p.id}">${p.nome} (Estoque: ${p.qtd})</option>`;
-      selOSProd.innerHTML += `<option value="${p.id}">${p.nome} (Estoque: ${p.qtd})</option>`;
-    });
-  }
+      <button class="btn secondary" onclick="editarProduto(${p.id})">Editar</button>
+      <button class="btn danger" onclick="excluirProduto(${p.id})">Excluir</button>
+    `;
+    list.appendChild(div);
+  });
+}
 
   // ======= VENDAS =======
   async function registrarVenda(){
@@ -710,5 +693,6 @@ const supabase = createClient(
 
 </body>
 </html>
+
 
 
