@@ -234,9 +234,13 @@
       <button class="btn" onclick="salvarProduto()">Salvar Produto</button>
     </div>
     <div class="card">
-      <h3>Produtos cadastrados</h3>
-      <div id="listaProdutos" class="list"></div>
-    </div>
+  <h3>Produtos cadastrados</h3>
+
+  <input id="filtroProd" placeholder="Buscar produto..." oninput="filtrarProdutos()" />
+
+  <div id="listaProdutos" class="list"></div>
+</div>
+
   </section>
 
   <!-- VENDAS -->
@@ -706,4 +710,5 @@ const supabase = createClient(
 
 </body>
 </html>
+
 
