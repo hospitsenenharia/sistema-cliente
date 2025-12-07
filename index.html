@@ -458,7 +458,7 @@ const supabase = createClient(
     });
   }
 
-  // ======= PRODUTOS / ESTOQUE =======
+// ======= PRODUTOS / ESTOQUE =======
 function filtrarProdutos(){
   const termo = document.getElementById("filtroProd").value.toLowerCase();
 
@@ -470,7 +470,22 @@ function filtrarProdutos(){
 
   renderizarProdutos(filtrados);
 }
-f
+
+// --- ADICIONADO E CORRIGIDO ---
+function editarProduto(id){
+  const p = listaProdutosCache.find(x => x.id === id);
+  if(!p) return;
+
+  document.getElementById("editId").value = p.id;
+  document.getElementById("editNome").value = p.nome;
+  document.getElementById("editCodigo").value = p.codigo || "";
+  document.getElementById("editMarca").value = p.marca || "";
+  document.getElementById("editModelo").value = p.modelo || "";
+  document.getElementById("editQtd").value = p.qtd;
+  document.getElementById("editMin").value = p.estoque_minimo;
+
+  document.getElementById("modalEditar").style.display = "flex";
+}
 
 function fecharModalEditar(){
   document.getElementById("modalEditar").style.display = "none";
@@ -504,13 +519,32 @@ async function salvarEdicaoProduto(){
   }
 
   fecharModalEditar();
-  carregarProdutos(); // atualiza tudo
-  carregarVendas();   // atualiza selects
-  carregarOS();       // atualiza selects da OS
+  carregarProdutos();
+  carregarVendas();
+  carregarOS();
   alert("Produto atualizado!");
 }
 
-  
+// --- FUNÇÃO EXCLUIR PRODUTO (NOVO) ---
+async function excluirProduto(id){
+  if(!confirm("Deseja realmente excluir este produto?")) return;
+
+  const { error } = await supabase
+    .from("produtos")
+    .delete()
+    .eq("id", id);
+
+  if(error){
+    alert("Erro ao excluir: " + error.message);
+    return;
+  }
+
+  carregarProdutos();
+  carregarVendas();
+  carregarOS();
+  alert("Produto excluído!");
+}
+
 let listaProdutosCache = [];
 
 async function carregarProdutos(){
@@ -550,6 +584,7 @@ function renderizarProdutos(lista){
     list.appendChild(div);
   });
 }
+
 
   // ======= VENDAS =======
   async function registrarVenda(){
@@ -771,6 +806,7 @@ function renderizarProdutos(lista){
 
 </body>
 </html>
+
 
 
 
